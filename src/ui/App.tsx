@@ -67,9 +67,26 @@ export function App() {
   const [qLoadError, setQLoadError] = useState<string | null>(null);
 
   const gameRef = useRef(game);
-  useEffect(() => {
-    gameRef.current = game;
-  }, [game]);
+
+  /**
+   * D2 düzeltmesi — tek serileştirilmiş yazım kapısı.
+   * TÜM oyun durumu yazımları (AI tick'i, Tek Hamle, klavye, yerçekimi,
+   * yeniden başlatma) bu fonksiyondan geçer: gameRef senkron güncellenir,
+   * React state yalnızca render aynasıdır. Böylece render ile effect arasındaki
+   * gecikmeden kaynaklanan bayat-okuma yarışı ortadan kalkar; iki yazım
+   * asla birbirinin üzerine yazamaz (JS tek iş parçacığında sıralanır).
+   */
+  const commitGame = useCallback(
+    (transform: (prev: GameState) => GameState): GameState => {
+      const next = transform(gameRef.current);
+      if (next !== gameRef.current) {
+        gameRef.current = next;
+        setGame(next);
+      }
+      return next;
+    },
+    [],
+  );
 
   const pendingRef = useRef<PendingDecision | null>(null);
   const nextRecordIdRef = useRef(1);
@@ -175,7 +192,7 @@ export function App() {
       }
       const [move, ...rest] = pending.decision.plan;
       pending.decision.plan = rest;
-      const next = applyMove(current, move);
+      const next = commitGame((prev) => applyMove(prev, move));
       if (move === "hardDrop") {
         finalizeDecision(pending, {
           state: next,
@@ -185,29 +202,28 @@ export function App() {
         });
         pendingRef.current = null;
       }
-      setGame(next);
     }, AI_TICK_MS);
     return () => window.clearInterval(id);
-  }, [running, aiEnabled, game.over, startDecision, finalizeDecision]);
+  }, [running, aiEnabled, game.over, startDecision, finalizeDecision, commitGame]);
 
   /** İnsan modu yerçekimi döngüsü. */
   useEffect(() => {
     if (!running || aiEnabled || game.over) return;
     const speed = Math.max(90, 700 - (game.level - 1) * 60);
     const id = window.setInterval(() => {
-      setGame((prev) => (prev.over ? prev : tick(prev)));
+      commitGame((prev) => (prev.over ? prev : tick(prev)));
     }, speed);
     return () => window.clearInterval(id);
-  }, [running, aiEnabled, game.over, game.level]);
+  }, [running, aiEnabled, game.over, game.level, commitGame]);
 
   const restart = useCallback(() => {
     pendingRef.current = null;
-    setGame(createGame());
+    commitGame(() => createGame());
     setHistory([]);
     setLastDecision(null);
     setSelectedRecordId(null);
     nextRecordIdRef.current = 1;
-  }, []);
+  }, [commitGame]);
 
   /** Klavye kontrolleri (yalnızca insan modunda hamle için). */
   useEffect(() => {
@@ -223,7 +239,8 @@ export function App() {
       }
       if (event.key in KEY_MAP && !aiEnabled) {
         event.preventDefault();
-        setGame((prev) => applyMove(prev, KEY_MAP[event.key]));
+        const move = KEY_MAP[event.key];
+        commitGame((prev) => applyMove(prev, move));
         return;
       }
       if (event.key === "p" || event.key === "P") {
@@ -234,7 +251,7 @@ export function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [aiEnabled, restart]);
+  }, [aiEnabled, restart, commitGame]);
 
   /** Tek tam ajan hamlesi: karar + uygulama + doğrulama (duraklatmada da). */
   const handleStep = useCallback(() => {
@@ -248,15 +265,15 @@ export function App() {
       pending.decision.plan = [];
       finalizeDecision(pending, result);
       pendingRef.current = null;
-      setGame(result.state);
+      commitGame(() => result.state);
     } else {
-      setGame(tick(current));
+      commitGame((prev) => tick(prev));
     }
-  }, [aiEnabled, startDecision, finalizeDecision]);
+  }, [aiEnabled, startDecision, finalizeDecision, commitGame]);
 
   const handleHardDropManual = useCallback(() => {
-    setGame((prev) => hardDrop(prev));
-  }, []);
+    commitGame((prev) => hardDrop(prev));
+  }, [commitGame]);
 
   const startTraining = useCallback(
     (options: TrainerOptions) => {

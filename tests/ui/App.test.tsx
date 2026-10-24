@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, afterEach } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { App } from "../../src/ui/App";
 
 function cellCount(): number {
@@ -77,5 +77,39 @@ describe("App — karar paneli ve eksik veri durumları", () => {
     expect(screen.getByTestId("candidate-score").textContent).not.toContain(
       "veri yok",
     );
+  });
+});
+
+describe("App — D2 serileştirme (yazım yarışı olmaması)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("AI tick'leri ile Tek Hamle tıklamaları arka arkaya tetiklendiğinde hiçbir hamle kaybolmaz ve tüm karar doğrulamaları geçer", () => {
+    vi.useFakeTimers();
+    render(<App />);
+    // AI açık, oyunu başlat (interval 90 ms'de bir tick atar)
+    fireEvent.click(screen.getByTestId("start-pause"));
+    // interval tick'leri ile araya Tek Hamle tıklamaları karıştır —
+    // eski kodda bu, bayat gameRef okumasıyla hamle kaybına ve sahte
+    // doğrulama uyuşmazlığına yol açabilirdi
+    for (let i = 0; i < 12; i++) {
+      act(() => {
+        vi.advanceTimersByTime(90);
+      });
+      if (i % 3 === 0) {
+        fireEvent.click(screen.getByTestId("step"));
+      }
+    }
+    // hiçbir sahte doğrulama uyuşmazlığı üretilmemeli
+    expect(screen.queryByTestId("error-banner")).toBeNull();
+    expect(screen.queryByTestId("verification-fail")).toBeNull();
+    // geçmişte karar kayıtları oluşmuş olmalı ve hiçbiri ✗ olmamalı
+    const historyTable = screen.getByTestId("history-table");
+    expect(historyTable).toBeDefined();
+    expect(historyTable.textContent).not.toContain("✗");
+    // oyun gerçekten ilerledi (hamleler kaybolmadı)
+    const pieces = Number(screen.getByTestId("pieces").textContent);
+    expect(pieces).toBeGreaterThan(1);
   });
 });
