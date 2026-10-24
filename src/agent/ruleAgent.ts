@@ -1,3 +1,4 @@
+import { boardFingerprint } from "../engine";
 import type { GameState } from "../engine";
 import { generateCandidates } from "./candidates";
 import { DEFAULT_WEIGHTS, explainSelection, rankCandidates } from "./heuristic";
@@ -59,13 +60,7 @@ export function decide(
   return {
     record,
     plan: best.plan,
-    expectedBoardFingerprint: fingerprintOf(simulatedBoard),
+    expectedBoardFingerprint: boardFingerprint(simulatedBoard),
     expectedLines: best.metrics?.linesCleared ?? 0,
   };
-}
-
-function fingerprintOf(board: import("../engine").Board): string {
-  return board
-    .map((row) => row.map((cell) => (cell === null ? "." : cell)).join(""))
-    .join("|");
 }
