@@ -96,4 +96,26 @@ describe("tahta işlemleri", () => {
     const typed: Board = b;
     expect(typed[19][0]).toBe("S");
   });
+
+  it("boş tahtanın parmak izi sabit 20×10 nokta ızgarasıdır", () => {
+    const board = createEmptyBoard();
+    expect(boardFingerprint(board)).toBe(
+      "..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........",
+    );
+  });
+
+  it("parmak izi sabit tahtada satır/sütun sırasını ve hücre kodlamasını korur", () => {
+    const board = createEmptyBoard();
+    board[0][0] = "I";
+    board[0][1] = "O";
+    board[0][9] = "T";
+    board[1][0] = "S";
+    board[1][4] = "Z";
+    board[18][5] = "J";
+    board[19][0] = "L";
+    board[19][9] = "I";
+    expect(boardFingerprint(board)).toBe(
+      "IO.......T|S...Z.....|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|..........|.....J....|L........I",
+    );
+  });
 });
