@@ -150,9 +150,15 @@ function StatusBadge({ record }: { record: ExperimentRecord }) {
       ? "tamamlandı"
       : record.status === "stopped"
         ? "DURDURULDU (kısmi)"
-        : `HATA: ${record.errorMessage ?? "bilinmeyen"}`;
+        : record.status === "completedWithErrors"
+          ? `TAMAMLANDI — DOĞRULAMA HATALI (${record.verificationErrors})`
+          : `HATA: ${record.errorMessage ?? "bilinmeyen"}`;
   const cls =
-    record.status === "completed" ? "ok" : record.status === "stopped" ? "pending" : "fail";
+    record.status === "completed"
+      ? "ok"
+      : record.status === "stopped"
+        ? "pending"
+        : "fail";
   return <span className={`badge ${cls}`}>{label}</span>;
 }
 
@@ -174,6 +180,7 @@ function LastExperimentDetail({ record }: { record: ExperimentRecord | null }) {
         {record.config.baseSeed}; parça sınırı {record.config.stepLimit}.
         {record.config.qEpisodesTrained !== null &&
           ` Q tablosu eğitim bölümü: ${record.config.qEpisodesTrained}.`}
+        {` Doğrulama: ${record.verificationsPerformed} hamle denetlendi, ${record.verificationErrors} uyuşmazlık.`}
         {record.verificationErrors > 0 &&
           ` DİKKAT: ${record.verificationErrors} simülasyon-motor uyuşmazlığı.`}
       </p>

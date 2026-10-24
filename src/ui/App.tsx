@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyMove, boardFingerprint, createGame, hardDrop, pieceCells, tick } from "../engine";
 import type { GameState, Move } from "../engine";
-import { decide, executePlan } from "../agent";
+import { decide, executePlan, verifyExecution } from "../agent";
 import type { AgentDecision } from "../agent/ruleAgent";
 import type { DecisionRecord } from "../agent/types";
 import { appendCapped, updateRecord } from "../agent/decisionLog";
@@ -108,25 +108,14 @@ export function App() {
       result: Pick<ExecutionResult, "state" | "linesCleared" | "fingerprint" | "completed">,
     ) => {
       const decision = pending.decision;
-      const expectedLines = decision.expectedLines;
-      const ok =
-        result.fingerprint === decision.expectedBoardFingerprint &&
-        result.linesCleared === expectedLines &&
-        result.completed;
-      const verification = {
-        ok,
-        expectedBoard: decision.expectedBoardFingerprint,
-        actualBoard: result.fingerprint,
-        expectedLines,
-        actualLines: result.linesCleared,
-        error: ok
-          ? undefined
-          : !result.completed
-            ? "plan motorca tam uygulanamadı (oyun erken bitti)"
-            : result.fingerprint !== decision.expectedBoardFingerprint
-              ? "tahta parmak izi simülasyonla uyuşmuyor"
-              : "temizlenen satır sayısı simülasyonla uyuşmuyor",
-      };
+      // Deney laboratuvarıyla paylaşılan tek doğrulama mantığı.
+      const verification = verifyExecution({
+        expectedBoardFingerprint: decision.expectedBoardFingerprint,
+        expectedLines: decision.expectedLines,
+        fingerprint: result.fingerprint,
+        linesCleared: result.linesCleared,
+        completed: result.completed,
+      });
       const appliedRecord: DecisionRecord = {
         ...decision.record,
         applied: true,
@@ -136,7 +125,7 @@ export function App() {
       };
       setHistory((prev) => updateRecord(prev, appliedRecord.id, appliedRecord));
       setLastDecision(appliedRecord);
-      if (!ok) {
+      if (!verification.ok) {
         pushError(
           `Ajan doğrulama hatası: simülasyon motor sonucuyla uyuşmadı. ${verification.error ?? ""}`,
         );

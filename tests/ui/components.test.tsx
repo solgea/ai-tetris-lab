@@ -4,6 +4,7 @@ import { ErrorBanner } from "../../src/ui/components/ErrorBanner";
 import { DecisionPanel } from "../../src/ui/components/DecisionPanel";
 import { TrainingPanel } from "../../src/ui/components/TrainingPanel";
 import { ExperimentsPanel } from "../../src/ui/components/ExperimentsPanel";
+import { summarize } from "../../src/lab/experiments";
 import type { DecisionRecord } from "../../src/agent/types";
 
 describe("ErrorBanner — hata durumlarının görünür olması", () => {
@@ -171,6 +172,7 @@ describe("ExperimentsPanel — eksik veri durumları", () => {
             startedAt: 1,
             finishedAt: 2,
             verificationErrors: 0,
+            verificationsPerformed: 0,
             summary: null,
           },
         ]}
@@ -181,6 +183,43 @@ describe("ExperimentsPanel — eksik veri durumları", () => {
       />,
     );
     expect(screen.getByText("DURDURULDU (kısmi)")).toBeDefined();
+  });
+
+  it("doğrulama uyuşmazlıklı deney başarılı gibi gösterilmez ve sayaç görünür olur", () => {
+    render(
+      <ExperimentsPanel
+        records={[
+          {
+            config: {
+              id: "e2",
+              name: "uyuşmazlıklı",
+              agentKind: "rule",
+              games: 2,
+              baseSeed: 1,
+              stepLimit: 20,
+              qEpisodesTrained: null,
+              appVersion: "0.1.0",
+            },
+            results: [],
+            status: "completedWithErrors",
+            errorMessage: "3 hamlede simülasyon-motor uyuşmazlığı (toplam 30 doğrulama)",
+            startedAt: 1,
+            finishedAt: 2,
+            verificationErrors: 3,
+            verificationsPerformed: 30,
+            summary: summarize([
+              { seed: 1, score: 120, lines: 3, pieces: 20, durationMs: 40, ended: "gameOver" },
+            ]),
+          },
+        ]}
+        running={false}
+        onRun={() => {}}
+        onStop={() => {}}
+        hasQTable={false}
+      />,
+    );
+    expect(screen.getByText(/TAMAMLANDI — DOĞRULAMA HATALI \(3\)/)).toBeDefined();
+    expect(screen.getByText(/30 hamle denetlendi, 3 uyuşmazlık/)).toBeDefined();
   });
 });
 
