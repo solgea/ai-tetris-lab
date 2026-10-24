@@ -48,9 +48,6 @@ export function discretize(board: Board): StateBins {
     }
     aggregate += height;
     if (height > maxHeight) maxHeight = height;
-    if (c > 0) {
-      // bumpiness zaten kolon döngüsünde hesaplanamıyor; aşağıda ayrı döngü
-    }
   }
   for (let c = 0; c < BOARD_WIDTH - 1; c++) {
     const h1 = columnHeight(board, c);
