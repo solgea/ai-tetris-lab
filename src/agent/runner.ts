@@ -49,6 +49,10 @@ export interface VerificationInput {
   linesCleared: number;
   /** Plan motorca tam uygulandı mı? */
   completed: boolean;
+  /** Simülasyonun beklediği oyun sonu durumu */
+  expectedOver: boolean;
+  /** Motorun ürettiği gerçek oyun sonu durumu */
+  actualOver: boolean;
 }
 
 /**
@@ -60,20 +64,25 @@ export function verifyExecution(input: VerificationInput): VerificationResult {
   const ok =
     input.fingerprint === input.expectedBoardFingerprint &&
     input.linesCleared === input.expectedLines &&
-    input.completed;
+    input.completed &&
+    input.actualOver === input.expectedOver;
   const error = ok
     ? undefined
     : !input.completed
       ? "plan motorca tam uygulanamadı (oyun erken bitti)"
       : input.fingerprint !== input.expectedBoardFingerprint
         ? "tahta parmak izi simülasyonla uyuşmuyor"
-        : "temizlenen satır sayısı simülasyonla uyuşmuyor";
+        : input.linesCleared !== input.expectedLines
+          ? "temizlenen satır sayısı simülasyonla uyuşmuyor"
+          : "oyun sonu tahmini motor sonucuyla uyuşmuyor";
   return {
     ok,
     expectedBoard: input.expectedBoardFingerprint,
     actualBoard: input.fingerprint,
     expectedLines: input.expectedLines,
     actualLines: input.linesCleared,
+    expectedOver: input.expectedOver,
+    actualOver: input.actualOver,
     error,
   };
 }

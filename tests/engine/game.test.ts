@@ -8,6 +8,7 @@ import {
   levelForLines,
   MOVE_FNS,
   pieceCells,
+  previewNextSpawn,
   rotatePiece,
   softDrop,
   tick,
@@ -201,6 +202,82 @@ describe("oyun sonu", () => {
     expect(steps).toBeLessThan(300);
     expect(hardDrop(state)).toBe(state);
     expect(tick(state)).toBe(state);
+  });
+
+  it("doğuş önizlemesi normal kuyrukta gerçek doğuşla aynıdır", () => {
+    const state = createGame(77);
+    const preview = previewNextSpawn(state);
+    const actual = hardDrop(state);
+
+    expect(preview.piece).toEqual(actual.current);
+    expect(preview.next).toEqual(actual.next);
+    expect(preview.bag).toEqual(actual.bag);
+    expect(preview.rngState).toBe(actual.rngState);
+    expect(preview.willCollide).toBe(actual.over);
+  });
+
+  it("boş kuyrukta doğuş önizlemesi fillQueue davranışını izler", () => {
+    const base = createGame(78);
+    const state: GameState = {
+      ...base,
+      board: createEmptyBoard(),
+      current: { type: "I", rotation: 0, x: 3, y: 0 },
+      next: [],
+      bag: [],
+      rngState: 123456789,
+    };
+    const before = JSON.stringify(state);
+    const preview = previewNextSpawn(state);
+
+    expect(JSON.stringify(state)).toBe(before);
+    expect(preview.next.length).toBe(3);
+    expect(preview.next[0]).toBeDefined();
+
+    const actual = hardDrop(state);
+    expect(preview.piece).toEqual(actual.current);
+    expect(preview.next).toEqual(actual.next);
+    expect(preview.bag).toEqual(actual.bag);
+    expect(preview.rngState).toBe(actual.rngState);
+    expect(preview.willCollide).toBe(actual.over);
+  });
+
+  it("doğuş çakışması önizlemede ve gerçek motorda aynı raporlanır", () => {
+    const base = createGame(79);
+    const board = createEmptyBoard();
+    // T parçasının doğuş hücreleri: (4,0), (3,1), (4,1), (5,1)
+    board[0][4] = "O";
+    board[1][3] = "O";
+    board[1][4] = "O";
+    board[1][5] = "O";
+    const state: GameState = {
+      ...base,
+      board,
+      current: { type: "I", rotation: 0, x: 3, y: 10 },
+      next: ["T"],
+      bag: ["I", "O", "S", "Z"],
+    };
+    const preview = previewNextSpawn(state);
+    const actual = hardDrop(state);
+
+    expect(preview.willCollide).toBe(true);
+    expect(preview.piece).toEqual(actual.current);
+    expect(actual.over).toBe(true);
+  });
+
+  it("doğuş önizlemesi girdiyi ve RNG durumunu değiştirmez", () => {
+    const base = createGame(80);
+    const state: GameState = {
+      ...base,
+      next: [],
+      bag: [],
+      rngState: 987654321,
+    };
+    const before = JSON.stringify(state);
+    const first = previewNextSpawn(state);
+    const second = previewNextSpawn(state);
+    expect(JSON.stringify(state)).toBe(before);
+    expect(state.rngState).toBe(987654321);
+    expect(first).toEqual(second);
   });
 
   it("doğuş çakışması oyunu derhal bitirir", () => {

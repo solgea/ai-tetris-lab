@@ -183,6 +183,7 @@ function LastExperimentDetail({ record }: { record: ExperimentRecord | null }) {
         {` Doğrulama: ${record.verificationsPerformed} hamle denetlendi, ${record.verificationErrors} uyuşmazlık.`}
         {record.verificationErrors > 0 &&
           ` DİKKAT: ${record.verificationErrors} simülasyon-motor uyuşmazlığı.`}
+        {` Top-out: ${record.avoidableTopOuts} önlenebilir, ${record.unavoidableTopOuts} kaçınılmaz.`}
       </p>
       {summary.lineDistribution.map((bin) => (
         <div key={bin.lines} style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -6,6 +6,7 @@ import {
   qStateKeyFor,
 } from "../../src/lab/experiments";
 import type { ExperimentConfig, GameResult } from "../../src/lab/experiments";
+import * as ruleAgent from "../../src/agent/ruleAgent";
 import * as runner from "../../src/agent/runner";
 import { createGame } from "../../src/engine";
 
@@ -174,6 +175,55 @@ describe("deney doğrulaması (D1)", () => {
     const totalPieces = record.results.reduce((sum, r) => sum + r.pieces, 0);
     expect(record.verificationsPerformed).toBeLessThanOrEqual(totalPieces);
     expect(record.errorMessage).toBeNull();
+  });
+
+  it("kaçınılmaz top-out doğrulama hatası sayılmaz ve ayrı metriğe yazılır", async () => {
+    const record = await runExperiment({
+      config: ruleConfig({ baseSeed: 9, stepLimit: 100 }),
+      shouldStop: () => false,
+    });
+    expect(record.status).toBe("completed");
+    expect(record.results[0].ended).toBe("gameOver");
+    expect(record.verificationsPerformed).toBeGreaterThan(0);
+    expect(record.verificationErrors).toBe(0);
+    expect(record.avoidableTopOuts).toBe(0);
+    expect(record.unavoidableTopOuts).toBe(1);
+    expect(record.errorMessage).toBeNull();
+  });
+
+  it("güvenli aday varken seçilen top-out önlenebilir sayılır ve diğer sayaçlardan ayrılır", async () => {
+    const original = ruleAgent.decide;
+    let injected = 0;
+    vi.spyOn(ruleAgent, "decide").mockImplementation((state, options) => {
+      const decision = original(state, options);
+      const selected = decision.record.candidates.find(
+        (candidate) => candidate.id === decision.record.selectedId,
+      );
+      if (decision.expectedOver && selected !== undefined) {
+        // Yalnızca test enjeksiyonu: seçilen top-out planı ve yürütme aynı
+        // kalır; laboratuvar sınıflandırıcısına güvenli bir aday görünür kılınır.
+        decision.record.candidates.push({
+          ...selected,
+          id: "test-safe-candidate",
+          willTopOut: false,
+        });
+        injected += 1;
+      }
+      return decision;
+    });
+
+    const record = await runExperiment({
+      config: ruleConfig({ games: 1, baseSeed: 9, stepLimit: 100 }),
+      shouldStop: () => false,
+    });
+
+    expect(injected).toBe(1);
+    expect(record.results[0].ended).toBe("gameOver");
+    expect(record.verificationsPerformed).toBeGreaterThan(0);
+    expect(record.avoidableTopOuts).toBe(1);
+    expect(record.unavoidableTopOuts).toBe(0);
+    expect(record.verificationErrors).toBe(0);
+    expect(record.status).toBe("completed");
   });
 
   it("simülasyon-motor uyuşmazlığı algılanır, sayılır ve deney başarılı gibi gösterilmez", async () => {

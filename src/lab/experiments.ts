@@ -87,6 +87,16 @@ export interface ExperimentRecord {
    * qlearn deneylerinde doğrulama uygulanmaz.
    */
   verificationsPerformed: number;
+  /**
+   * Güvenli bir ulaşılabilir aday varken top-out seçilen karar sayısı.
+   * Sağlıklı ajan için 0 olmalıdır; karar kalitesini doğrulamadan ayırır.
+   */
+  avoidableTopOuts: number;
+  /**
+   * Tüm ulaşılabilir adaylar top-out olduğu için kaçınılmaz olarak
+   * seçilen top-out kararı sayısı. Doğrulama hatası değildir.
+   */
+  unavoidableTopOuts: number;
   summary: ExperimentSummary | null;
 }
 
@@ -153,6 +163,8 @@ export async function runExperiment(
     finishedAt: null,
     verificationErrors: 0,
     verificationsPerformed: 0,
+    avoidableTopOuts: 0,
+    unavoidableTopOuts: 0,
     summary: null,
   };
   const yieldEvery = options.yieldEvery ?? 5;
@@ -172,6 +184,8 @@ export async function runExperiment(
         record.results.push(outcome.result);
         record.verificationsPerformed += outcome.verificationsPerformed;
         record.verificationErrors += outcome.verificationErrors;
+        record.avoidableTopOuts += outcome.avoidableTopOuts;
+        record.unavoidableTopOuts += outcome.unavoidableTopOuts;
       } else {
         record.results.push(
           runQEvalGame(seed, config.stepLimit, options.qAgent),
@@ -204,6 +218,8 @@ interface RuleGameOutcome {
   result: GameResult;
   verificationsPerformed: number;
   verificationErrors: number;
+  avoidableTopOuts: number;
+  unavoidableTopOuts: number;
 }
 
 function runRuleGame(
@@ -216,16 +232,30 @@ function runRuleGame(
   let ended: GameResult["ended"] = "gameOver";
   let verificationsPerformed = 0;
   let verificationErrors = 0;
+  let avoidableTopOuts = 0;
+  let unavoidableTopOuts = 0;
   while (!state.over && state.pieces <= stepLimit) {
     const decision = decide(state, { weights });
+    const safeAvailable = decision.record.candidates.some(
+      (c) => c.reachable && c.willTopOut === false,
+    );
+    const selected = decision.record.candidates.find(
+      (c) => c.id === decision.record.selectedId,
+    );
+    if (selected?.willTopOut === true) {
+      if (safeAvailable) avoidableTopOuts += 1;
+      else unavoidableTopOuts += 1;
+    }
     const result = executePlan(state, decision.plan);
-    // Oyun içi panelle AYNI doğrulama: parmak izi + temizlenen satır sayısı.
+    // Oyun içi panelle AYNI doğrulama: tahta + satır + oyun sonu tahmini.
     const verification = verifyExecution({
       expectedBoardFingerprint: decision.expectedBoardFingerprint,
       expectedLines: decision.expectedLines,
       fingerprint: result.fingerprint,
       linesCleared: result.linesCleared,
       completed: result.completed,
+      expectedOver: decision.expectedOver,
+      actualOver: result.state.over,
     });
     verificationsPerformed += 1;
     if (!verification.ok) verificationErrors += 1;
@@ -243,6 +273,8 @@ function runRuleGame(
     },
     verificationsPerformed,
     verificationErrors,
+    avoidableTopOuts,
+    unavoidableTopOuts,
   };
 }
 

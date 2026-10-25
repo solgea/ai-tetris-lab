@@ -132,6 +132,8 @@ export function App() {
         fingerprint: result.fingerprint,
         linesCleared: result.linesCleared,
         completed: result.completed,
+        expectedOver: decision.expectedOver,
+        actualOver: result.state.over,
       });
       const appliedRecord: DecisionRecord = {
         ...decision.record,

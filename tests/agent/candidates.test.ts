@@ -41,11 +41,13 @@ describe("aday üretici", () => {
       expect(candidate.landingY).not.toBeNull();
       expect(candidate.simulatedBoard).not.toBeNull();
       expect(candidate.metrics).not.toBeNull();
+      expect(candidate.willTopOut).not.toBeNull();
     }
     const unreachable = candidates.filter((c) => !c.reachable);
     for (const candidate of unreachable) {
       expect(candidate.reason.length).toBeGreaterThan(0);
       expect(candidate.score).toBeNull();
+      expect(candidate.willTopOut).toBeNull();
     }
   });
 
@@ -61,6 +63,18 @@ describe("aday üretici", () => {
         );
         expect(result.linesCleared).toBe(candidate.metrics!.linesCleared);
         expect(result.completed).toBe(true);
+      }
+    }
+  });
+
+  it("willTopOut tahmini gerçek motor yürütmesiyle birebir eşleşir", () => {
+    for (const seed of [21, 22, 23]) {
+      const state = createGame(seed);
+      const candidates = generateCandidates(state);
+      for (const candidate of candidates) {
+        if (!candidate.reachable) continue;
+        const result = executePlan(state, candidate.plan);
+        expect(result.state.over).toBe(candidate.willTopOut);
       }
     }
   });

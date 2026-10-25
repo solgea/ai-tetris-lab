@@ -1,4 +1,9 @@
-import { BOARD_WIDTH, rotatePiece, tryShift } from "../engine";
+import {
+  BOARD_WIDTH,
+  previewNextSpawn,
+  rotatePiece,
+  tryShift,
+} from "../engine";
 import type { GameState, Move } from "../engine";
 import { simulateDrop } from "./simulator";
 import type { Candidate } from "./types";
@@ -82,6 +87,7 @@ export function generateCandidates(state: GameState): Candidate[] {
         column: -1,
         plan: [],
         reachable: false,
+        willTopOut: null,
         landingY: null,
         metrics: null,
         contributions: null,
@@ -100,6 +106,7 @@ export function generateCandidates(state: GameState): Candidate[] {
           column: targetColumn,
           plan: [],
           reachable: false,
+          willTopOut: null,
           landingY: null,
           metrics: null,
           contributions: null,
@@ -118,6 +125,7 @@ export function generateCandidates(state: GameState): Candidate[] {
           column: targetColumn,
           plan,
           reachable: false,
+          willTopOut: null,
           landingY: null,
           metrics: null,
           contributions: null,
@@ -127,12 +135,17 @@ export function generateCandidates(state: GameState): Candidate[] {
         });
         continue;
       }
+      const spawn = previewNextSpawn({
+        ...state,
+        board: simulation.board,
+      });
       candidates.push({
         id: `${targetRotation}:${targetColumn}`,
         rotation: targetRotation,
         column: targetColumn,
         plan,
         reachable: true,
+        willTopOut: spawn.willCollide,
         landingY: simulation.landingY,
         metrics: simulation.metrics,
         contributions: null,
@@ -150,6 +163,7 @@ export function generateCandidates(state: GameState): Candidate[] {
       candidate.plan[candidate.plan.length - 1] !== "hardDrop"
     ) {
       candidate.reachable = false;
+      candidate.willTopOut = null;
       candidate.reason = "plan sert düşüşle bitmiyor (dahili hata)";
     }
   }

@@ -53,6 +53,8 @@ describe("karar günlüğü", () => {
         actualBoard: "a",
         expectedLines: 2,
         actualLines: 2,
+        expectedOver: false,
+        actualOver: false,
       },
     });
     expect(updated[0].applied).toBe(true);

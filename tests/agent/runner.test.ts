@@ -8,6 +8,8 @@ describe("verifyExecution — simülasyon/motor doğrulama yardımcısı", () =>
     fingerprint: "....|....|....",
     linesCleared: 0,
     completed: true,
+    expectedOver: false,
+    actualOver: false,
   };
 
   it("beklentiyle tutarlıysa ok=true ve hatasız döner", () => {
@@ -57,5 +59,53 @@ describe("verifyExecution — simülasyon/motor doğrulama yardımcısı", () =>
       fingerprint: "XXXX|....|....",
     });
     expect(result.ok).toBe(false);
+  });
+
+  it("beklenen ve gerçek oyun sonu aynıysa doğrulama geçer", () => {
+    const result = verifyExecution({
+      ...base,
+      expectedOver: true,
+      actualOver: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.expectedOver).toBe(true);
+    expect(result.actualOver).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("beklenen oyun sonu false iken gerçek true ise doğrulama başarısız olur", () => {
+    const result = verifyExecution({
+      ...base,
+      expectedOver: false,
+      actualOver: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("oyun sonu");
+    expect(result.expectedOver).toBe(false);
+    expect(result.actualOver).toBe(true);
+  });
+
+  it("beklenen oyun sonu true iken gerçek false ise doğrulama başarısız olur", () => {
+    const result = verifyExecution({
+      ...base,
+      expectedOver: true,
+      actualOver: false,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("oyun sonu");
+    expect(result.expectedOver).toBe(true);
+    expect(result.actualOver).toBe(false);
+  });
+
+  it("oyun sonu uyuşmazlığı tahta ve satır alanlarını ayrı tutar", () => {
+    const result = verifyExecution({
+      ...base,
+      expectedOver: false,
+      actualOver: true,
+    });
+    expect(result.expectedBoard).toBe(base.expectedBoardFingerprint);
+    expect(result.actualBoard).toBe(base.fingerprint);
+    expect(result.expectedLines).toBe(base.expectedLines);
+    expect(result.actualLines).toBe(base.linesCleared);
   });
 });

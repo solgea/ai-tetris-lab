@@ -95,7 +95,9 @@ export function explainSelection(
   candidates: Candidate[],
   weights: Weights,
 ): string {
-  const lines = candidates.filter((c) => c.reachable).length;
+  const reachable = candidates.filter((c) => c.reachable);
+  const safeCount = reachable.filter((c) => c.willTopOut === false).length;
+  const topOutCount = reachable.filter((c) => c.willTopOut === true).length;
   const metricTexts: string[] = [];
   if (best.metrics && best.contributions) {
     metricTexts.push(
@@ -106,9 +108,15 @@ export function explainSelection(
       `düzensizlik ${best.metrics.bumpiness} (${formatContribution(best.contributions.bumpiness)})`,
     );
   }
+  const selectionText =
+    topOutCount > 0 && safeCount > 0
+      ? `${reachable.length} ulaşılabilir adaydan ${topOutCount} tanesi sonraki parçanın doğuşunu engellediği için elendi; ${safeCount} güvenli aday arasında en yüksek toplam puanı aldı (${best.score?.toFixed(3)}).`
+      : topOutCount > 0
+        ? `${reachable.length} ulaşılabilir adayın tamamı sonraki parçanın doğuşunu engelliyor; en yüksek toplam puanlı geri dönüş adayı seçildi (${best.score?.toFixed(3)}).`
+        : `${reachable.length} ulaşılabilir aday arasından en yüksek toplam puanı aldı (${best.score?.toFixed(3)}).`;
   return (
     `${pieceType} parçası rotation=${best.rotation}, column=${best.column} konumuna bırakıldı. ` +
-    `${lines} ulaşılabilir aday arasından en yüksek toplam puanı aldı (${best.score?.toFixed(3)}). ` +
+    `${selectionText} ` +
     `Katkılar: ${metricTexts.join(", ")}. ` +
     `Ağırlıklar: satır=${weights.linesCleared}, delik=${weights.holes}, ` +
     `toplam yükseklik=${weights.aggregateHeight}, tepe=${weights.maxHeight}, düzensizlik=${weights.bumpiness}.`

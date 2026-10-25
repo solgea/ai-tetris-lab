@@ -3,12 +3,162 @@ import {
   createEmptyBoard,
   createGame,
 } from "../../src/engine";
-import type { GameState } from "../../src/engine";
+import type { Board, GameState, PieceType } from "../../src/engine";
 import { decide } from "../../src/agent/ruleAgent";
-import { executePlan } from "../../src/agent/runner";
+import { executePlan, verifyExecution } from "../../src/agent/runner";
 import { DEFAULT_WEIGHTS, scoreCandidate } from "../../src/agent/heuristic";
 
+const SEED_9_ROWS = [
+  "..L.......",
+  "..L.......",
+  ".SLLZIIII.",
+  ".SSZZT.OOJ",
+  "..SZTTTOOJ",
+  ".SSTIIIIJJ",
+  "..LLLLZSOO",
+  ".ZLT.ZZSSI",
+  "..SSTJJJJI",
+  ".SSTTTLJJZ",
+  ".OOJLLLZZZ",
+  ".OOJJJZZZI",
+  ".TTTOOZSSI",
+  ".ITJOOSSLI",
+  ".ITJJJSSLI",
+  ".ITTISSLLL",
+  ".ITTILLLOO",
+  ".ZTTIJJJOO",
+  ".ZZSSJSSLL",
+  ".TZZSSSJLL",
+];
+
+/** Seed 9 / karar 62 anının doğrudan, değişmez kopyası. */
+function seed9State(): GameState {
+  const board: Board = SEED_9_ROWS.map((row) =>
+    [...row].map((cell) => (cell === "." ? null : (cell as PieceType))),
+  );
+  return {
+    board,
+    current: { type: "J", rotation: 0, x: 3, y: 0 },
+    next: ["J", "O", "L"],
+    bag: ["S", "Z", "T", "I"],
+    rngState: -870373509,
+    seed: 9,
+    score: 2466,
+    lines: 9,
+    level: 1,
+    over: false,
+    pieces: 63,
+    lastClear: null,
+  };
+}
+
+function allTopOutState(): GameState {
+  const base = createGame(9);
+  const board = createEmptyBoard();
+  board[1][3] = "O";
+  board[1][6] = "O";
+  return {
+    ...base,
+    board,
+    current: { type: "O", rotation: 0, x: 4, y: 0 },
+    next: ["I", "T", "L"],
+    bag: ["S", "Z", "J", "O"],
+    rngState: 12345,
+    score: 0,
+    lines: 0,
+    pieces: 1,
+    over: false,
+  };
+}
+
 describe("kural tabanlı ajan", () => {
+  it("seed 9 / karar 62: güvenli aday varken top-out seçmez", () => {
+    const state = seed9State();
+    const decision = decide(state);
+    const candidates = decision.record.candidates;
+    const safe = candidates.filter(
+      (c) => c.reachable && c.willTopOut === false,
+    );
+    // record.candidates rankCandidates tarafından sıralanır; ilk güvenli
+    // eşleşme bu nedenle gerçek sözleşmedeki en yüksek sıralı güvenli adaydır.
+    const highestRankedSafe = candidates.find(
+      (c) => c.reachable && c.willTopOut === false,
+    );
+    const selected = candidates.find(
+      (c) => c.id === decision.record.selectedId,
+    );
+
+    expect(candidates.find((c) => c.id === "0:6")?.willTopOut).toBe(false);
+    expect(candidates.find((c) => c.id === "0:3")?.willTopOut).toBe(true);
+    expect(safe.length).toBeGreaterThan(0);
+    expect(highestRankedSafe).toBeDefined();
+    expect(decision.record.selectedId).toBe(highestRankedSafe?.id);
+    expect(selected).toBeDefined();
+    expect(selected?.reachable).toBe(true);
+    expect(selected?.willTopOut).toBe(false);
+    expect(decision.expectedOver).toBe(false);
+
+    const result = executePlan(state, decision.plan);
+    expect(result.completed).toBe(true);
+    expect(result.state.over).toBe(false);
+    expect(result.fingerprint).toBe(decision.expectedBoardFingerprint);
+    expect(result.linesCleared).toBe(decision.expectedLines);
+  });
+
+  it("tüm ulaşılabilir adaylar top-out ise en iyi geri dönüşü seçer", () => {
+    const state = allTopOutState();
+    const decision = decide(state);
+    const reachable = decision.record.candidates.filter((c) => c.reachable);
+    // record.candidates rankCandidates tarafından sıralanır; ilk ulaşılabilir
+    // aday bu nedenle gerçek sözleşmedeki en yüksek sıralı geri dönüştür.
+    const highestRankedFallback = decision.record.candidates.find(
+      (c) => c.reachable && c.score !== null,
+    );
+    const selected = decision.record.candidates.find(
+      (c) => c.id === decision.record.selectedId,
+    );
+
+    expect(reachable.length).toBeGreaterThan(0);
+    expect(reachable.every((c) => c.willTopOut === true)).toBe(true);
+    expect(highestRankedFallback).toBeDefined();
+    expect(decision.record.selectedId).toBe(highestRankedFallback?.id);
+    expect(selected).toBeDefined();
+    expect(selected?.reachable).toBe(true);
+    expect(selected?.willTopOut).toBe(true);
+    expect(decision.expectedOver).toBe(true);
+
+    const result = executePlan(state, decision.plan);
+    expect(result.completed).toBe(true);
+    expect(result.state.over).toBe(true);
+
+    const verification = verifyExecution({
+      expectedBoardFingerprint: decision.expectedBoardFingerprint,
+      expectedLines: decision.expectedLines,
+      fingerprint: result.fingerprint,
+      linesCleared: result.linesCleared,
+      completed: result.completed,
+      expectedOver: decision.expectedOver,
+      actualOver: result.state.over,
+    });
+    expect(verification.ok).toBe(true);
+  });
+
+  it("hiç ulaşılabilir aday yoksa mevcut karar hatası korunur", () => {
+    const base = createGame(56);
+    const board = createEmptyBoard();
+    for (let column = 0; column < 10; column++) {
+      board[0][column] = "O";
+      board[1][column] = "O";
+    }
+    const blocked: GameState = {
+      ...base,
+      board,
+      current: { type: "O", rotation: 0, x: 4, y: 0 },
+      next: ["I", "T", "L"],
+    };
+    expect(() => decide(blocked)).toThrow("Ulaşılabilir aday hamle yok");
+  });
+
   it("en yüksek puanlı adayı seçer", () => {
     const state = createGame(31);
     const decision = decide(state);

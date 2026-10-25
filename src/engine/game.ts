@@ -40,23 +40,51 @@ function fillQueue(
   return { next: queue, bag: currentBag, rngState: s };
 }
 
-/** Sıradaki parçayı doğurur; doğuş pozisyonu çakışıyorsa oyun biter. */
-function spawnNext(state: GameState): GameState {
+export interface SpawnPreview {
+  /** Doğacak parça (motorun doğuş kurallarıyla) */
+  piece: ActivePiece;
+  /** Doğumdan sonra kuyrukta kalan parçalar */
+  next: PieceType[];
+  /** Doğumdan sonra torbada kalan parçalar */
+  bag: PieceType[];
+  /** Doğumun tüketeceği RNG durumu (girdi durumu değişmez) */
+  rngState: number;
+  /** Doğuş pozisyonu verilen tahtayla çakışıyor mu? */
+  willCollide: boolean;
+}
+
+/**
+ * Sıradaki parçanın doğuşunu yan etkisiz önizler. `spawnNext` ile aynı
+ * kuyruk doldurma, RNG, şekil, döndürme ve konum kurallarını kullanır;
+ * girdi durumunu veya RNG durumunu değiştirmez.
+ */
+export function previewNextSpawn(state: GameState): SpawnPreview {
   const filled = fillQueue(state.next, state.bag, state.rngState);
   const type = filled.next[0];
-  const queue = filled.next.slice(1);
   const shape = shapeOf(type, 0);
   const x = Math.floor((BOARD_WIDTH - shape[0].length) / 2);
-  const current: ActivePiece = { type, rotation: 0, x, y: 0 };
-  const base: GameState = {
-    ...state,
-    next: queue,
+  const piece: ActivePiece = { type, rotation: 0, x, y: 0 };
+  return {
+    piece,
+    next: filled.next.slice(1),
     bag: filled.bag,
     rngState: filled.rngState,
-    current,
+    willCollide: collides(state.board, piece),
+  };
+}
+
+/** Sıradaki parçayı doğurur; doğuş pozisyonu çakışıyorsa oyun biter. */
+function spawnNext(state: GameState): GameState {
+  const preview = previewNextSpawn(state);
+  const base: GameState = {
+    ...state,
+    next: preview.next,
+    bag: preview.bag,
+    rngState: preview.rngState,
+    current: preview.piece,
     pieces: state.pieces + 1,
   };
-  if (collides(state.board, current)) {
+  if (preview.willCollide) {
     return { ...base, over: true };
   }
   return base;

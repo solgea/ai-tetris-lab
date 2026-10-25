@@ -52,6 +52,12 @@ export interface Candidate {
   plan: Move[];
   /** Hedef konuma motor hamleleriyle ulaşılabiliyor mu? */
   reachable: boolean;
+  /**
+   * Bu yerleşimden sonra sıradaki parçanın doğuşu çakışıyor mu?
+   * Ulaşılamayan adaylarda null; ulaşılabilir adaylarda kesin boolean.
+   * Top-out, yerleşimin ulaşılamaz olduğu anlamına gelmez.
+   */
+  willTopOut: boolean | null;
   /** İniş satırı (şekil matrisinin üst kenarı); ulaşılamıyorsa null */
   landingY: number | null;
   /** Simüle edilmiş son tahtanın ölçütleri; ulaşılamıyorsa null */
@@ -75,6 +81,10 @@ export interface VerificationResult {
   actualBoard: string;
   expectedLines: number;
   actualLines: number;
+  /** Simülasyonun beklediği oyun sonu durumu */
+  expectedOver: boolean;
+  /** Motorun ürettiği oyun sonu durumu */
+  actualOver: boolean;
   /** Uyuşmazlık varsa insan-okur açıklama */
   error?: string;
 }
